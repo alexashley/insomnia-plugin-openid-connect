@@ -1,0 +1,14 @@
+{
+  "name": "insomnia-plugin-openid-connect",
+  "version": "0.0.0",
+  "description": "An Insomnia plugin for authenticating with OpenId Connect",
+  "main": "plugin.js",
+  "repository": "git@github.com:alexashley/insomnia-plugin-openid-connect.git",
+  "author": "Alex Ashley <alexashley15@gmail.com>",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "joi": "14.3.1",
+    "openid-client": "2.4.5"
+  }
+}

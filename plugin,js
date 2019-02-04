@@ -1,0 +1,14 @@
+const oidc = require('openid-client');
+const joi = require('joi');
+
+const schema = joi.object().keys({
+	clientId: joi.string().required(),
+	// allow the clientSecret to be an empty string for public clients (e.g., mobile apps)
+	// that said, it's not recommended for public clients to use direct access grants or the client credentials flow
+	clientSecret: joi.string().allow('').required(),
+	grantType: joi.string().valid('password', 'client_credentials').default('password').required(),
+	username: joi.string().required(), // TODO: only require username/password for direct access/resource owner credentials
+	password: joi.string().required()
+});
+
+module.exports.templateTags = [];
