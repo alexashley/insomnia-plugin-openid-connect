@@ -7,30 +7,56 @@ const CLIENT_CACHE = {};
 const DEBUG = false;
 const isDebug = () => window.OIDC_DEBUG || DEBUG;
 
-const requireGrantTypePassword = (fieldName) => joi.string().when('grantType', {
-    is: 'password',
-    then: joi.string().required(),
-    otherwise: joi.string()
-        .valid('', null)
-        .default('') // set a valid default here to allow for the key not to be present
-        .error(new Error(`Grant type must be 'password' to set ${fieldName}`)),
-});
+const requireGrantTypePassword = (fieldName) =>
+    joi.string().when('grantType', {
+        is: 'password',
+        then: joi.string().required(),
+        otherwise: joi
+            .string()
+            .valid('', null)
+            .default('') // set a valid default here to allow for the key not to be present
+            .error(
+                new Error(`Grant type must be 'password' to set ${fieldName}`)
+            ),
+    });
 
 const schema = joi.object().keys({
-    additionalScopes: joi.array().items(joi.string()).default([]),
-    clockTolerance: joi.number().integer().default(5),
+    additionalScopes: joi
+        .array()
+        .items(joi.string())
+        .default([]),
+    clockTolerance: joi
+        .number()
+        .integer()
+        .default(5),
     clientId: joi.string().required(),
     // allow the clientSecret to be an empty string for public clients (e.g., mobile apps)
     // that said, it's not recommended for public clients to use direct access grants or the client credentials flow
-    clientSecret: joi.string().allow('').required(),
-    grantType: joi.string().valid('password', 'client_credentials').default('password'),
-    issuerUri: joi.string().uri().required(),
-    resourceServerUris: joi.array().items(joi.string()).required(), // the hostname(s) of the resource server(s) that require the access token
+    clientSecret: joi
+        .string()
+        .allow('')
+        .required(),
+    grantType: joi
+        .string()
+        .valid('password', 'client_credentials')
+        .default('password'),
+    issuerUri: joi
+        .string()
+        .uri()
+        .required(),
+    resourceServerUris: joi
+        .array()
+        .items(joi.string())
+        .required(), // the hostname(s) of the resource server(s) that require the access token
     username: requireGrantTypePassword('username'),
     password: requireGrantTypePassword('password'),
 });
 
-const log = (...message) => console.log(`[insomnia-plugin-openid-connect] [${new Date().toLocaleTimeString()}]`, message.join(' '));
+const log = (...message) =>
+    console.log(
+        `[insomnia-plugin-openid-connect] [${new Date().toLocaleTimeString()}]`,
+        message.join(' ')
+    );
 const debug = (...message) => isDebug() && log(...message);
 
 const isAccessTokenValid = (tokens) => {
@@ -42,12 +68,7 @@ const isAccessTokenValid = (tokens) => {
 };
 
 const getOrCreateClient = async (options) => {
-    const {
-        clientId,
-        clientSecret,
-        clockTolerance,
-        issuerUri
-    } = options;
+    const { clientId, clientSecret, clockTolerance, issuerUri } = options;
     const clientsForIssuer = CLIENT_CACHE[issuerUri] || {};
     let client = clientsForIssuer[clientId];
 
@@ -58,14 +79,14 @@ const getOrCreateClient = async (options) => {
     const issuer = await oidc.Issuer.discover(issuerUri);
 
     client = new issuer.Client({
-        'client_id': clientId,
-        'client_secret': clientSecret
+        client_id: clientId,
+        client_secret: clientSecret,
     });
     client.CLOCK_TOLERANCE = clockTolerance;
 
     CLIENT_CACHE[issuerUri] = {
         ...CLIENT_CACHE[issuerUri],
-        [clientId]: client
+        [clientId]: client,
     };
 
     return client;
@@ -87,7 +108,7 @@ const authenticateOrRefresh = async (config, tokens) => {
         clientId,
         issuerUri,
         username,
-        password
+        password,
     } = config;
 
     const client = await getOrCreateClient(config);
@@ -95,11 +116,11 @@ const authenticateOrRefresh = async (config, tokens) => {
     let newTokens = null;
 
     /*
-    * TODO:
-    * - not handling refresh
-    * - not checking if refresh token has already expired
-    * - not allowing for client credentials grant
-    * */
+     * TODO:
+     * - not handling refresh
+     * - not checking if refresh token has already expired
+     * - not allowing for client credentials grant
+     * */
     if (!tokens) {
         debug(`authenticating to ${issuerUri} with client ${clientId}`);
 
@@ -109,7 +130,7 @@ const authenticateOrRefresh = async (config, tokens) => {
             grant_type: 'password',
             username,
             password,
-            scope
+            scope,
         });
     }
 
@@ -119,12 +140,7 @@ const authenticateOrRefresh = async (config, tokens) => {
 };
 
 const createCacheKey = (config) => {
-    const {
-        clientId,
-        issuerUri,
-        grantType,
-        username
-    } = config;
+    const { clientId, issuerUri, grantType, username } = config;
 
     // combination key to allow for changing username, grant type, or client id without losing track of any tokens
     return [issuerUri, grantType, clientId, username]
@@ -145,11 +161,23 @@ module.exports.requestHooks = [
             return;
         }
 
-        const config = joi.attempt(env[keyName], schema, 'Invalid environment options');
-        const resourceServerUri = config.resourceServerUris.find((uri) => uri === requestUrl.hostname);
+        const config = joi.attempt(
+            env[keyName],
+            schema,
+            'Invalid environment options'
+        );
+        const resourceServerUri = config.resourceServerUris.find(
+            (uri) => uri === requestUrl.hostname
+        );
 
         if (!resourceServerUri) {
-            return debug(`skipping: request host (${requestUrl.hostname}) does not match any resource servers: [${config.resourceServerUris.join(', ')}]`);
+            return debug(
+                `skipping: request host (${
+                    requestUrl.hostname
+                }) does not match any resource servers: [${config.resourceServerUris.join(
+                    ', '
+                )}]`
+            );
         }
 
         let tokens = getFromTokenCache(config);
@@ -160,6 +188,9 @@ module.exports.requestHooks = [
         }
 
         debug('setting authorization header with token', tokens.access_token);
-        context.request.setHeader('Authorization', `Bearer ${tokens.access_token}`);
-    }
+        context.request.setHeader(
+            'Authorization',
+            `Bearer ${tokens.access_token}`
+        );
+    },
 ];
