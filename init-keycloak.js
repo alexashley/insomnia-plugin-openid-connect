@@ -7,6 +7,7 @@ const username = 'foo';
 const password = 'bar';
 const clientId = 'insomnia-plugin-openid-connect';
 const clientSecret = '256ff4e3-d3b7-4ac7-b67b-5a6336b93fd9';
+const redirectUri = 'http://localhost:3030/oidc';
 
 const wait = (seconds) =>
     new Promise((resolve) => setTimeout(resolve, seconds * 1000));
@@ -100,6 +101,7 @@ const createRealm = async (accessToken) =>
         method: 'POST',
         body: {
             realm,
+            enabled: true,
         },
         bodyType: 'json',
         headers: {
@@ -114,6 +116,7 @@ const createUser = async (accessToken) =>
             authorization: `bearer ${accessToken}`,
         },
         body: {
+            enabled: true,
             username,
             credentials: [
                 {
@@ -133,7 +136,11 @@ const createClient = (accessToken) =>
         },
         body: {
             clientId,
+            enabled: true,
+            directAccessGrantsEnabled: true,
+            redirectUris: [redirectUri],
             secret: clientSecret,
+            serviceAccountsEnabled: true,
         },
     });
 
