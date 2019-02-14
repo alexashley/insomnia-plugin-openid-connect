@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  oidc:
+    image: jboss/keycloak:4.8.3.Final
+    ports:
+    - 8080:8080
+    environment:
+    - KEYCLOAK_USER=keycloak
+    - KEYCLOAK_PASSWORD=password
