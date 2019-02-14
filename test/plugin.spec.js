@@ -66,6 +66,10 @@ describe('plugin', () => {
         };
     });
 
+    afterEach(() => {
+        jest.resetAllMocks();
+    });
+
     describe('options validation', () => {
         it('should require a list of resourceServerUris', async () => {
             delete options.resourceServerUris;
@@ -129,9 +133,19 @@ describe('plugin', () => {
         });
     });
 
+    it('should not set the authorization header if the request uri does not match a resource server', async () => {
+        context.request.getUrl.mockReturnValue('http://foobar.org');
+
+        await requestHook(context);
+
+        expect(context.request.setHeader).not.toHaveBeenCalled();
+    });
+
     describe('resource owner credentials flow', () => {
         beforeEach(async () => {
-            context.request.getUrl.mockReturnValue(resourceServerUri);
+            context.request.getUrl.mockReturnValue(
+                `${resourceServerUri}/some/path`
+            );
 
             await requestHook(context);
         });
@@ -150,11 +164,12 @@ describe('plugin', () => {
         it('should set bearer as the authentication type', () => {
             const [authType, token] = getAuthorizationHeaderParts();
 
+            expect(authType).toBeTruthy();
             expect(authType.toLowerCase()).toBe('bearer');
-            expect(token).toBeDefined();
+            expect(token).toBeTruthy();
         });
 
-        it('should use a JWT signed by the identity provider', async () => {
+        it('should use a JWT signed by the identity provider for the client', async () => {
             const [, token] = getAuthorizationHeaderParts();
             const jwtClaims = await validateJwt(token);
 
@@ -194,11 +209,12 @@ describe('plugin', () => {
         it('should set bearer as the authentication type', () => {
             const [authType, token] = getAuthorizationHeaderParts();
 
+            expect(authType).toBeTruthy();
             expect(authType.toLowerCase()).toBe('bearer');
-            expect(token).toBeDefined();
+            expect(token).toBeTruthy();
         });
 
-        it('should use a JWT signed by the identity provider', async () => {
+        it('should use a JWT signed by the identity provider for the client', async () => {
             const [, token] = getAuthorizationHeaderParts();
             const jwtClaims = await validateJwt(token);
 
