@@ -16,7 +16,7 @@ const requireGrantTypePassword = (fieldName) =>
             .valid('', null)
             .default('') // set a valid default here to allow for the key not to be present
             .error(
-                new Error(`Grant type must be 'password' to set ${fieldName}`)
+                new Error(`Grant type must be "password" to set ${fieldName}`)
             ),
     });
 
@@ -46,7 +46,8 @@ const schema = joi.object().keys({
         .required(),
     resourceServerUris: joi
         .array()
-        .items(joi.string())
+        .min(1)
+        .items(joi.string().uri())
         .required(), // the hostname(s) of the resource server(s) that require the access token
     username: requireGrantTypePassword('username'),
     password: requireGrantTypePassword('password'),
@@ -109,6 +110,7 @@ const authenticateOrRefresh = async (config, tokens) => {
         issuerUri,
         username,
         password,
+        grantType,
     } = config;
 
     const client = await getOrCreateClient(config);
@@ -119,19 +121,24 @@ const authenticateOrRefresh = async (config, tokens) => {
      * TODO:
      * - not handling refresh
      * - not checking if refresh token has already expired
-     * - not allowing for client credentials grant
      * */
     if (!tokens) {
-        debug(`authenticating to ${issuerUri} with client ${clientId}`);
+        debug(
+            `authenticating to ${issuerUri} with client ${clientId} and grant type: ${grantType}`
+        );
 
         const scope = getScope(additionalScopes);
-
-        newTokens = await client.grant({
-            grant_type: 'password',
-            username,
-            password,
+        const grantOptions = {
+            grant_type: grantType,
             scope,
-        });
+        };
+
+        if (grantType === 'password') {
+            grantOptions.username = username;
+            grantOptions.password = password;
+        }
+
+        newTokens = await client.grant(grantOptions);
     }
 
     TOKEN_CACHE[createCacheKey(config)] = newTokens;
@@ -167,7 +174,7 @@ module.exports.requestHooks = [
             'Invalid environment options'
         );
         const resourceServerUri = config.resourceServerUris.find(
-            (uri) => uri === requestUrl.hostname
+            (uri) => new URL(uri).hostname === requestUrl.hostname
         );
 
         if (!resourceServerUri) {
