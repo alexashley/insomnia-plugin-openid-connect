@@ -38,7 +38,7 @@ const schema = joi.object().keys({
         .required(),
     grantType: joi
         .string()
-        .valid('password', 'client_credentials')
+        .valid('password', 'client_credentials', 'authorization_code')
         .default('password'),
     issuerUri: joi
         .string()
@@ -76,7 +76,6 @@ const getOrCreateClient = async (options) => {
     if (client) {
         return client;
     }
-
     const issuer = await oidc.Issuer.discover(issuerUri);
 
     client = new issuer.Client({
@@ -103,6 +102,10 @@ const getScope = (additionalScopes) => {
     return [...scopes].join(' ');
 };
 
+const shouldAuthenticate = (tokens) => {
+    return !tokens || tokens.expired();
+};
+
 const authenticateOrRefresh = async (config, tokens) => {
     const {
         additionalScopes,
@@ -112,7 +115,6 @@ const authenticateOrRefresh = async (config, tokens) => {
         password,
         grantType,
     } = config;
-
     const client = await getOrCreateClient(config);
 
     let newTokens = null;
@@ -122,7 +124,7 @@ const authenticateOrRefresh = async (config, tokens) => {
      * - not handling refresh
      * - not checking if refresh token has already expired
      * */
-    if (!tokens) {
+    if (shouldAuthenticate(tokens)) {
         debug(
             `authenticating to ${issuerUri} with client ${clientId} and grant type: ${grantType}`
         );
@@ -139,6 +141,11 @@ const authenticateOrRefresh = async (config, tokens) => {
         }
 
         newTokens = await client.grant(grantOptions);
+    } else {
+        debug(
+            `refreshing tokens against ${issuerUri} for ${clientId} and grant type: ${grantType}`
+        );
+        newTokens = await client.refresh(tokens);
     }
 
     TOKEN_CACHE[createCacheKey(config)] = newTokens;

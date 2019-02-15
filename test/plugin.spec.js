@@ -1,5 +1,6 @@
 const jwks = require('jwks-rsa');
 const jsonwebtoken = require('jsonwebtoken');
+const lolex = require('lolex');
 
 const plugin = require('../src/plugin');
 const requestHook = plugin.requestHooks[0];
@@ -69,6 +70,9 @@ describe('plugin', () => {
     afterEach(() => {
         jest.resetAllMocks();
     });
+
+    const getAuthorizationHeaderParts = (callCount = 0) =>
+        context.request.setHeader.mock.calls[callCount][1].split(' ');
 
     describe('options validation', () => {
         it('should require a list of resourceServerUris', async () => {
@@ -150,9 +154,6 @@ describe('plugin', () => {
             await requestHook(context);
         });
 
-        const getAuthorizationHeaderParts = () =>
-            context.request.setHeader.mock.calls[0][1].split(' ');
-
         it('should set the authorization header', () => {
             expect(context.request.setHeader).toHaveBeenCalledTimes(1);
             expect(context.request.setHeader).toHaveBeenCalledWith(
@@ -195,9 +196,6 @@ describe('plugin', () => {
             await requestHook(context);
         });
 
-        const getAuthorizationHeaderParts = () =>
-            context.request.setHeader.mock.calls[0][1].split(' ');
-
         it('should set the authorization header', () => {
             expect(context.request.setHeader).toHaveBeenCalledTimes(1);
             expect(context.request.setHeader).toHaveBeenCalledWith(
@@ -228,6 +226,54 @@ describe('plugin', () => {
             expect(jwtClaims.preferred_username).toBe(
                 `service-account-${clientId}`
             );
+        });
+    });
+
+    describe('refresh', () => {
+        let clock;
+
+        beforeEach(async () => {
+            clock = lolex.install({
+                now: new Date(),
+                shouldAdvanceTime: true,
+            });
+
+            context.request.getUrl.mockReturnValue(resourceServerUri);
+
+            await requestHook(context);
+        });
+
+        afterEach(() => {
+            clock.uninstall();
+        });
+
+        const getNthAccessTokenClaims = (callCount = 0) => {
+            const [, token] = getAuthorizationHeaderParts(callCount);
+
+            return validateJwt(token);
+        };
+
+        it('should refresh if the access token has expired', async () => {
+            const tokenBeforeRefresh = await getNthAccessTokenClaims();
+            const time = new Date();
+            clock.setSystemTime(tokenBeforeRefresh.exp * 1000);
+
+            await requestHook(context);
+
+            clock.setSystemTime(time.getTime()); // reset the clock so that the token validates
+            const tokenAfterRefresh = await getNthAccessTokenClaims(1);
+
+            expect(tokenAfterRefresh.jti).not.toBe(tokenBeforeRefresh.jti);
+        });
+
+        it('should not refresh the token if it has not expired', async () => {
+            const previousToken = await getNthAccessTokenClaims();
+
+            await requestHook(context);
+
+            const tokenAfterRequest = await getNthAccessTokenClaims(1);
+
+            expect(tokenAfterRequest).toEqual(previousToken);
         });
     });
 });
