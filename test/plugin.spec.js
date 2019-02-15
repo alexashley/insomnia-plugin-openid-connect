@@ -266,7 +266,7 @@ describe('plugin', () => {
             expect(tokenAfterRefresh.jti).not.toBe(tokenBeforeRefresh.jti);
         });
 
-        it('should not refresh the token if it has not expired', async () => {
+        it('should re-use non-expired token', async () => {
             const previousToken = await getNthAccessTokenClaims();
 
             await requestHook(context);

@@ -119,11 +119,6 @@ const authenticateOrRefresh = async (config, tokens) => {
 
     let newTokens = null;
 
-    /*
-     * TODO:
-     * - not handling refresh
-     * - not checking if refresh token has already expired
-     * */
     if (shouldAuthenticate(tokens)) {
         debug(
             `authenticating to ${issuerUri} with client ${clientId} and grant type: ${grantType}`
