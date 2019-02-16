@@ -1,5 +1,7 @@
 const oidc = require('openid-client');
 const joi = require('joi');
+const electron = require('electron');
+const uuid = require('uuid');
 
 const TOKEN_CACHE = {};
 const CLIENT_CACHE = {};
@@ -7,16 +9,18 @@ const CLIENT_CACHE = {};
 const DEBUG = false;
 const isDebug = () => window.OIDC_DEBUG || DEBUG;
 
-const requireGrantTypePassword = (fieldName) =>
+const requireGrantType = (grantType, fieldName, schema) =>
     joi.string().when('grantType', {
-        is: 'password',
-        then: joi.string().required(),
+        is: grantType,
+        then: schema || joi.string().required(),
         otherwise: joi
             .string()
             .valid('', null)
             .default('') // set a valid default here to allow for the key not to be present
             .error(
-                new Error(`Grant type must be "password" to set ${fieldName}`)
+                new Error(
+                    `Grant type must be "${grantType}" to set ${fieldName}`
+                )
             ),
     });
 
@@ -25,6 +29,7 @@ const schema = joi.object().keys({
         .array()
         .items(joi.string())
         .default([]),
+    redirectUri: requireGrantType('authorization_code', 'redirectUri'),
     clockTolerance: joi
         .number()
         .integer()
@@ -49,8 +54,8 @@ const schema = joi.object().keys({
         .min(1)
         .items(joi.string().uri())
         .required(), // the hostname(s) of the resource server(s) that require the access token
-    username: requireGrantTypePassword('username'),
-    password: requireGrantTypePassword('password'),
+    username: requireGrantType('password', 'username'),
+    password: requireGrantType('password', 'password'),
 });
 
 const log = (...message) =>
@@ -106,6 +111,93 @@ const shouldAuthenticate = (tokens) => {
     return !tokens || tokens.expired();
 };
 
+const parseQueryParamsForCode = (uri) => {
+    if (!uri) {
+        return null;
+    }
+
+    const [, params] = uri.split('?');
+
+    if (!params) {
+        return null;
+    }
+
+    const queryParams = params
+        .split('&')
+        .map((param) => param.split('='))
+        .reduce(
+            (acc, [key, value]) => ({
+                ...acc,
+                [key]: decodeURIComponent(value),
+            }),
+            {}
+        );
+
+    if (queryParams['code']) {
+        return queryParams;
+    }
+
+    return null;
+};
+
+const authorizationCodeFlow = (config, client) => {
+    const { additionalScopes, redirectUri } = config;
+
+    const scope = getScope(additionalScopes);
+    const state = uuid.v4();
+    const authorizationUri = client.authorizationUrl({
+        redirect_uri: redirectUri,
+        scope,
+        state,
+    });
+    // this is based on Insomnia's clever approach of intercepting the redirect back to the client
+    const window = new electron.remote.BrowserWindow();
+
+    return new Promise((resolve, reject) => {
+        let tokens, callbackParams;
+        const checkForCode = async () => {
+            debug(`navigated to`, window.webContents.getURL());
+            if (callbackParams) {
+                return;
+            }
+
+            callbackParams = parseQueryParamsForCode(
+                window.webContents.getURL()
+            );
+
+            if (!callbackParams) {
+                return;
+            }
+
+            debug(
+                `received callback params: ${JSON.stringify(callbackParams)}`
+            );
+
+            try {
+                tokens = await client.authorizationCallback(
+                    redirectUri,
+                    callbackParams,
+                    { state }
+                );
+            } catch (error) {
+                debug(
+                    `error exchanging authorization code for tokens`,
+                    error.message
+                );
+
+                return reject(error);
+            }
+
+            window.close();
+            resolve(tokens);
+        };
+
+        window.webContents.on('did-fail-load', checkForCode);
+        window.webContents.on('did-navigate', checkForCode);
+        window.loadURL(authorizationUri);
+    });
+};
+
 const authenticateOrRefresh = async (config, tokens) => {
     const {
         additionalScopes,
@@ -124,18 +216,22 @@ const authenticateOrRefresh = async (config, tokens) => {
             `authenticating to ${issuerUri} with client ${clientId} and grant type: ${grantType}`
         );
 
-        const scope = getScope(additionalScopes);
-        const grantOptions = {
-            grant_type: grantType,
-            scope,
-        };
+        if (grantType === 'authorization_code') {
+            newTokens = await authorizationCodeFlow(config, client);
+        } else {
+            const scope = getScope(additionalScopes);
+            const grantOptions = {
+                grant_type: grantType,
+                scope,
+            };
 
-        if (grantType === 'password') {
-            grantOptions.username = username;
-            grantOptions.password = password;
+            if (grantType === 'password') {
+                grantOptions.username = username;
+                grantOptions.password = password;
+            }
+
+            newTokens = await client.grant(grantOptions);
         }
-
-        newTokens = await client.grant(grantOptions);
     } else {
         debug(
             `refreshing tokens against ${issuerUri} for ${clientId} and grant type: ${grantType}`
