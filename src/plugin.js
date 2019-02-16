@@ -53,7 +53,7 @@ const schema = joi.object().keys({
         .array()
         .min(1)
         .items(joi.string().uri())
-        .required(), // the hostname(s) of the resource server(s) that require the access token
+        .required(), // the URIs of the resource server(s) that require the access token
     username: requireGrantType('password', 'username'),
     password: requireGrantType('password', 'password'),
 });
