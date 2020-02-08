@@ -1,6 +1,10 @@
 kind: pipeline
 type: docker
-name: default
+name: pr-verify
+
+trigger:
+  event:
+    - pull_request
 
 services:
   - name: keycloak
