@@ -2,7 +2,7 @@ const fetch = require('node-fetch');
 const qs = require('querystring');
 
 const realm = 'insomnia';
-const keycloakUri = 'http://localhost:8080';
+const keycloakUri = process.env.KEYCLOAK_URL || 'http://localhost:8080';
 const username = 'foo';
 const password = 'bar';
 const clientId = 'insomnia-plugin-openid-connect';
@@ -26,18 +26,19 @@ const waitForKeycloakToStart = async () => {
             if (response.ok) {
                 return;
             }
-        } catch (error) {}
+        } catch (error) {
+        }
 
         attempts++;
 
         await wait(1);
     }
 
-    throw new Error("Keycloak didn't start in the allotted time");
+    throw new Error('Keycloak didn\'t start in the allotted time');
 };
 
 const request = async (uri, options) => {
-    const { headers = {}, method = 'GET', bodyType = 'json', body } = options;
+    const {headers = {}, method = 'GET', bodyType = 'json', body} = options;
 
     const fetchOptions = {
         headers: {

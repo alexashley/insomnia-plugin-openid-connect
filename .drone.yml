@@ -1,0 +1,20 @@
+kind: pipeline
+type: docker
+name: default
+
+services:
+  - name: keycloak
+    image: jboss/keycloak:4.8.3.Final
+    environment:
+      KEYCLOAK_USER: keycloak
+      KEYCLOAK_PASSWORD: password
+
+steps:
+  - name: test
+    image: node:12.15.0-alpine3.11
+    commands:
+      - yarn install --no-progress --frozen-lockfile
+      - node init-keycloak.js
+      - yarn test
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
