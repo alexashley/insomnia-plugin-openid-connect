@@ -10,4 +10,7 @@ module.exports = {
             statements: 100,
         },
     },
+    moduleNameMapper: {
+        electron: "<rootDir>/test/mocks/electron.js"
+    }
 };

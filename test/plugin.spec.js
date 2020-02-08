@@ -10,7 +10,7 @@ describe('plugin', () => {
         password = 'bar',
         clientId = 'insomnia-plugin-openid-connect',
         clientSecret = '256ff4e3-d3b7-4ac7-b67b-5a6336b93fd9',
-        issuerUri = 'http://localhost:8080/auth/realms/insomnia',
+        issuerUri = `${process.env.KEYCLOAK_URL}/auth/realms/insomnia`,
         resourceServerUri = 'http://localhost:3030';
 
     let validateJwt, options, context;
